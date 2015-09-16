@@ -4,7 +4,7 @@
 # www.aquaray.com
 #
 
-readonly ioping_count=60
+ioping_count=60
 declare -a jobs_array=(1 2 4 8 16 32 64)
 declare -a iodepth_array=(1)
 declare -a sync_array=(0 1)
@@ -127,7 +127,7 @@ while true; do
 	    shift;;
 	-d) disks=(${disks[@]} "${2}");
 	    shift 2;;
-	-ioping-count) ioping_count=$2;
+	--ioping-count) ioping_count=$2;
 	    shift 2;;
 	--export)
 	    export_to_file=1;
@@ -202,7 +202,7 @@ for disk_dev in ${disks[@]}; do
 
     #1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
     iops_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in .*, \([0-9\.]*\) \(.*\)iops.*|\1 \2|gp"))
-    if [ ${#iops_and_unit[@]} -eq 2 ]; then
+    if [ ${#iops_and_unit[@]} -eq 2 -o ${#iops_and_unit[@]} -eq 1 ]; then
 	case "${iops_and_unit[1]}" in
 	    "")    iops=${iops_and_unit[0]};;
 	    "k")  iops=$(echo "scale=0;(${iops_and_unit[0]} * 1000)/1" | ${BC});;
@@ -236,24 +236,28 @@ for disk_dev in ${disks[@]}; do
     if [ ${#latency_and_unit[@]} -eq 8 ]; then
 	case "${latency_and_unit[1]}" in
 	    "us")   min=${latency_and_unit[0]};;
+	    "ms")   min=$(echo "scale=0;${latency_and_unit[0]} * 1000" | ${BC} -l);;
 	    "msec") min=$(echo "scale=0;${latency_and_unit[0]} * 1000" | ${BC} -l);;
 	    *)      warn "Cannot parse ioping min latency";;
 	esac
 
     	case "${latency_and_unit[3]}" in
 	    "us")   avg=${latency_and_unit[2]};;
+	    "ms")   avg=$(echo "scale=0;${latency_and_unit[2]} * 1000" | ${BC} -l);;
 	    "msec") avg=$(echo "scale=0;${latency_and_unit[2]} * 1000" | ${BC} -l);;
 	    *)      warn "Cannot parse ioping avg latency";;
 	esac
 
     	case "${latency_and_unit[5]}" in
 	    "us")   max=${latency_and_unit[4]};;
+	    "ms")   max=$(echo "scale=0;${latency_and_unit[4]} * 1000" | ${BC} -l);;
 	    "msec") max=$(echo "scale=0;${latency_and_unit[4]} * 1000" | ${BC} -l);;
 	    *)      warn "Cannot parse ioping max latency";;
 	esac
 
 	case "${latency_and_unit[7]}" in
 	    "us")   mdev=${latency_and_unit[6]};;
+	    "ms")   mdev=$(echo "scale=0;${latency_and_unit[6]} * 1000" | ${BC} -l);;
 	    "msec") mdev=$(echo "scale=0;${latency_and_unit[6]} * 1000" | ${BC} -l);;
 	    *)      warn "Cannot parse ioping mdev latency";;
 	esac
