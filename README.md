@@ -2,6 +2,12 @@
 
 disk_benchmark.sh run and parse ioping and fio results.
 
+## Warning !
+
+Do not use this script on disk that have data !
+
+Data will be damanged as the script writes data directly to the device !
+
 ## Prerequisite packages
 * bc
 * ioping
