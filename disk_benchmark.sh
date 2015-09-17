@@ -165,6 +165,16 @@ for disk_dev in ${disks[@]}; do
     declare -a disk_results=()
 
     DISK_MODEL=$(echo $(hdparm -I ${disk_dev} | grep -i model | cut -d : -f 2));
+
+    DISK_SIZE=($(hdparm -I ${disk_dev} | sed -n "s|device size with M = 1000\*1000:.*(\([0-9]\+\) \([a-zA-Z]\+\))|\1 \2|gp"))
+    if [ ${#DISK_SIZE[@]} -ne 2 ]; then
+	warn "Cannot parse disk size"
+    fi
+    DISK_FIRMWARE=$(hdparm -I ${disk_dev} | sed -n "s|.*Firmware Revision:[[:space:]]*\(.\+\)|\1|gp")
+    if [ -z "${DISK_FIRMWARE}" ]; then
+	warn "Cannot parse disk firmware"
+    fi
+
     DISK_MODEL_NO_SPACE=$(echo "${DISK_MODEL}" | sed "s/[[:space:]]/_/g")
 
     my_banner "Testing : ${DISK_MODEL} (${disk_dev})";
@@ -344,17 +354,17 @@ for disk_dev in ${disks[@]}; do
 
 
     if [ ${export_to_file} -eq 1 ]; then
-	MODEL_CSV_HEADER="disk_model;"
+	MODEL_CSV_HEADER="disk_model;disk_size;disk_size_unit;disk_firmware_version;"
 	FIO_CSV_HEADER="fio_io_direct;fio_io_sync;fio_nb_jobs;fio_bs;fio_ioengine;fio_iodepth;fio_rw;fio_iops;fio_bw (B/s);fio_runtime (s);"
 	IOPING_CSV_HEADER="ioping_time (us);ioping_iops;ioping_bw (B/s);ioping_min_latency (us);ioping_avg_latency (us);ioping_max_latency (us);ioping_mdev_latency (us);"
 
 	CSV_HEADER=${MODEL_CSV_HEADER}${FIO_CSV_HEADER}${IOPING_CSV_HEADER}
 
-	output_file="${RESULT_FOLDER}/${DISK_MODEL_NO_SPACE}_${disk_number}.csv"
+	output_file="${RESULT_FOLDER}/${DISK_MODEL_NO_SPACE}_${DISK_SIZE[0]}${DISK_SIZE[1]}_${DISK_FIRMWARE}_${disk_number}.csv"
 	info "Write results for ${DISK_MODEL} in ${output_file}"
 	echo "${CSV_HEADER}" > "${output_file}"
 	for fio_line in "${fio_csv[@]}"; do
-	    echo "${DISK_MODEL};${fio_line}${IOPING_RESULT}" >> "${output_file}"
+	    echo "${DISK_MODEL};${DISK_SIZE[0]};${DISK_SIZE[1]};${DISK_FIRMWARE};${fio_line}${IOPING_RESULT}" >> "${output_file}"
 	done
     fi
 
