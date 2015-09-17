@@ -28,6 +28,9 @@ Many options for fio can be changed (see variables at the beginning of the scrip
 
 The CSV will contain the following values (for each tested disk) :
 - disk model (string)
+- disk_size (integer)
+- disk_size_unit (string)
+- disk_firmware_version (string)
 - fio io_direct (0 or 1)
 - fio io_sync (0 or 1)
 - fio nb_jobs (integer)
