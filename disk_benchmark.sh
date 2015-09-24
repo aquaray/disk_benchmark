@@ -5,6 +5,7 @@
 #
 
 ioping_count=60
+declare -a ioengine_array=("libaio")
 declare -a jobs_array=(1 2 4 8 16 32 64)
 declare -a iodepth_array=(1)
 declare -a sync_array=(0 1)
@@ -138,6 +139,10 @@ while true; do
     esac
 done
 
+if [ "${#disks}" -eq 0 ]; then
+    usage "at lease one disk must be set (-d option)"
+fi
+
 if [[ -z "${ioping_count}" ]] || ! [[ "${ioping_count}" =~ ^[0-9]+$ ]]; then
     usage "--ioping-count must be a number ('${ioping_count}')"
 fi
@@ -156,7 +161,7 @@ if [ "${CONTINUE_OR_NOT}" != "y" ]; then
     die "Canceled by user."
 fi
 
-readonly test_count=$((${#disks[@]} * ${#jobs_array[@]} * ${#iodepth_array[@]} * ${#sync_array[@]} * ${#direct_array[@]} * ${#rw_array[@]} * ${#bs_array[@]} * ${#runtime_array[@]} + ${#disks[@]}))
+readonly test_count=$((${#disks[@]} * ${#ioengine_array[@]} * ${#jobs_array[@]} * ${#iodepth_array[@]} * ${#sync_array[@]} * ${#direct_array[@]} * ${#rw_array[@]} * ${#bs_array[@]} * ${#runtime_array[@]} + ${#disks[@]}))
 test_number=1
 disk_number=0
 
@@ -287,71 +292,71 @@ for disk_dev in ${disks[@]}; do
 
     declare fio_csv=()
 
-    for rw in ${rw_array[@]}; do
-	for job in ${jobs_array[@]}; do
-	    for iodepth in ${iodepth_array[@]}; do
-		for sync in ${sync_array[@]}; do
-		    for direct in ${direct_array[@]}; do
-			for bs in ${bs_array[@]}; do
-			    for runtime in ${runtime_array[@]}; do
+    for ioengine in ${ioengine_array[@]}; do
+        for rw in ${rw_array[@]}; do
+	    for job in ${jobs_array[@]}; do
+	        for iodepth in ${iodepth_array[@]}; do
+		    for sync in ${sync_array[@]}; do
+		        for direct in ${direct_array[@]}; do
+			    for bs in ${bs_array[@]}; do
+			        for runtime in ${runtime_array[@]}; do
 
 				#Create tmpfile to parse after
-				tmpFile=$(mktemp "/tmp/fio_${DISK_MODEL_NO_SPACE}.XXXX")
+				    tmpFile=$(mktemp "/tmp/fio_${DISK_MODEL_NO_SPACE}.XXXX")
 
-				fio_test_name="${disk_dev},disk_model=${DISK_MODEL}"
+				    fio_test_name="${disk_dev},disk_model=${DISK_MODEL}"
 
-				info "Test ${test_number}/${test_count}: FIO  with following options:" fio --filename="${disk_dev}" --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting
+				    info "Test ${test_number}/${test_count}: FIO  with following options:" fio --filename="${disk_dev}" --ioengine=${ioengine}--direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting
 
-				if [ ${verbose} -eq 0 ]; then
-				    ${FIO} --filename="${disk_dev}" --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting --name="${fio_test_name}" > "${tmpFile}"
-				else
-				    echo ""
-				    ${FIO} --filename="${disk_dev}" --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting --name="${fio_test_name}" | tee "${tmpFile}"
-				    echo ""
-				fi
+				    if [ ${verbose} -eq 0 ]; then
+				        ${FIO} --filename="${disk_dev}" --ioengine=${ioengine} --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting --name="${fio_test_name}" > "${tmpFile}"
+				    else
+				        echo ""
+				        ${FIO} --filename="${disk_dev}" --ioengine=${ioengine} --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting --name="${fio_test_name}" | tee "${tmpFile}"
+				        echo ""
+				    fi
 
-				nb_jobs=$(cat "${tmpFile}" | sed -n 's|.*, jobs=\(.*\)):.*|\1|gp'|head -n 1)
-			       	iops=$(cat "${tmpFile}" | sed -n "s|.*B/s, iops=\(.*\)[[:space:]]*, runt.*|\1|gp"|head -n 1);
+				    nb_jobs=$(cat "${tmpFile}" | sed -n 's|.*, jobs=\(.*\)):.*|\1|gp'|head -n 1)
+			       	    iops=$(cat "${tmpFile}" | sed -n "s|.*B/s, iops=\(.*\)[[:space:]]*, runt.*|\1|gp"|head -n 1);
 
 				#1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
-				bw_and_unit=($(cat "${tmpFile}" | sed -n "s|.*bw=\([0-9\.]*\)\([A-Za-z]*\)/s, iops=.*|\1 \2|gp"))
-				if [ ${#bw_and_unit[@]} -eq 2 ]; then
-				    case "${bw_and_unit[1]}" in
-					"B")   bw=${bw_and_unit[0]}
-					    bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1024) / 1024" | ${BC} -l)
-					    ;;
-					"KB")  bw=$(echo "${bw_and_unit[0]} * 1024" | ${BC} -l)
-					    bw_text=$(echo "scale=3;${bw_and_unit[0]} / 1024" | ${BC} -l)
-					    ;;
-					"MB")  bw=$(echo "${bw_and_unit[0]} * 1024 * 1024" | ${BC} -l)
-					    bw_text="${bw_and_unit[0]}"
-					    ;;
-					*)     warn "Cannot parse fio bw";;
-				    esac
-				else
-				    warn "Cannot parse fio bw";
-				fi
+				    bw_and_unit=($(cat "${tmpFile}" | sed -n "s|.*bw=\([0-9\.]*\)\([A-Za-z]*\)/s, iops=.*|\1 \2|gp"))
+				    if [ ${#bw_and_unit[@]} -eq 2 ]; then
+				        case "${bw_and_unit[1]}" in
+					    "B")   bw=${bw_and_unit[0]}
+					        bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1024) / 1024" | ${BC} -l)
+					        ;;
+					    "KB")  bw=$(echo "${bw_and_unit[0]} * 1024" | ${BC} -l)
+					        bw_text=$(echo "scale=3;${bw_and_unit[0]} / 1024" | ${BC} -l)
+					        ;;
+					    "MB")  bw=$(echo "${bw_and_unit[0]} * 1024 * 1024" | ${BC} -l)
+					        bw_text="${bw_and_unit[0]}"
+					        ;;
+					    *)     warn "Cannot parse fio bw";;
+				        esac
+				    else
+				        warn "Cannot parse fio bw";
+				    fi
 
 				#rw=write, bs=4K-4K/4K-4K, ioengine=sync, iodepth=1
-				bs=$(cat "${tmpFile}" | sed -n "s|.*bs=\(.*\), ioengine.*|\1|gp"|head -n 1);
-				ioengine=$(cat "${tmpFile}" | sed -n "s|.*ioengine=\(.*\),.*|\1|gp"|head -n 1);
-				iodepth=$(cat "${tmpFile}" | sed -n "s|.*iodepth=\(.*\)|\1|gp"|head -n 1);
-				runtime=$(cat "${tmpFile}" | sed -n "s|.*runt=\(.*\)|\1|gp"| cut -d 'm' -f1 | tr -d ' '| head -n 1 );
-				rw=$(cat "${tmpFile}" | sed -n "s|.*rw=\(.*\)|\1|gp"|head -n 1 | cut -d , -f1);
-				rm "${tmpFile}"
+				    bs=$(cat "${tmpFile}" | sed -n "s|.*bs=\(.*\), ioengine.*|\1|gp"|head -n 1);
+				    iodepth=$(cat "${tmpFile}" | sed -n "s|.*iodepth=\(.*\)|\1|gp"|head -n 1);
+				    runtime=$(cat "${tmpFile}" | sed -n "s|.*runt=\(.*\)|\1|gp"| cut -d 'm' -f1 | tr -d ' '| head -n 1 );
+				    rw=$(cat "${tmpFile}" | sed -n "s|.*rw=\(.*\)|\1|gp"|head -n 1 | cut -d , -f1);
+				    rm "${tmpFile}"
 
-				fio_csv+=("${direct};${sync};${nb_jobs};${bs};${ioengine};${iodepth};${rw};${iops};${bw};${runtime::-3};")
-				disk_results+=("Result ${test_number}/${test_count}: fio: BW=${GREEN}${bw_text} MB/s${WHITE}, IOPS=${GREEN}${iops}${WHITE}")
+				    fio_csv+=("${direct};${sync};${nb_jobs};${bs};${ioengine};${iodepth};${rw};${iops};${bw};${runtime::-3};")
+				    disk_results+=("Result ${test_number}/${test_count}: fio: BW=${GREEN}${bw_text} MB/s${WHITE}, IOPS=${GREEN}${iops}${WHITE}")
 
-				test_number=$((${test_number}+1))
+				    test_number=$((${test_number}+1))
+			        done
 			    done
-			done
+		        done
 		    done
-		done
+	        done
 	    done
-	done
+        done
     done
-
 
     if [ ${export_to_file} -eq 1 ]; then
 	MODEL_CSV_HEADER="disk_model;disk_size;disk_size_unit;disk_firmware_version;"
