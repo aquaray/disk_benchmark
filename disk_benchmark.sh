@@ -193,7 +193,7 @@ for disk_dev in "${disks[@]}"; do
     tmpFile=$(mktemp "/tmp/ioping_${DISK_MODEL_NO_SPACE}.XXXX")
 
     if [[ ${verbose} -eq 0 ]]; then
-	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" | tail -n 2 > "${tmpFile}"
+	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" > "${tmpFile}"
     else
 	echo ""
 	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" | tee "${tmpFile}"
