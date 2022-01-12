@@ -15,8 +15,6 @@ declare -a bs_array=('4k')
 declare -a runtime_array=(60)
 readonly use_color=1
 
-
-
 declare -a disks=()
 export_to_file=0
 verbose=0
@@ -24,8 +22,8 @@ verbose=0
 my_banner()
 {
     width=$((25+${#1}))
-    width_for_txt=$(($width-6))
-    width=$(($width+1))
+    width_for_txt=$((width-6))
+    width=$((width+1))
 
     divider="##############################################################################################"
     divider="$divider$divider"
@@ -37,26 +35,26 @@ my_banner()
 
     echo "${GREEN}"
     printf "%$width.${width}s\n" "$divider"
-    printf "## %$((${width}-6))s ##\n" ""
+    printf "## %$((width-6))s ##\n" ""
     printf "%s %${L}s %s %${L}s %s\n" "##" "" "$1" "" "##"
-    printf "## %$((${width}-6))s ##\n" ""
+    printf "## %$((width-6))s ##\n" ""
     printf "%$width.${width}s\n" "$divider"
     echo "${WHITE}"
 }
 
 info()
 {
-    echo "[${GREEN}**${WHITE}] ${@}"
+    echo "[${GREEN}**${WHITE}]" "${@}"
 }
 warn()
 {
-    echo "[${YELLOW}!!${WHITE}] ${@}" >&2
+    echo "[${YELLOW}!!${WHITE}]" "${@}" >&2
 }
 
 die()
 {
     if [ $# -ne 0 ]; then
-	echo "[${RED}!!${WHITE}] $@" >&2
+	echo "[${RED}!!${WHITE}]" "$@" >&2
     else
 	echo "[${RED}!!${WHITE}] Unknow Error" >&2
     fi
@@ -67,7 +65,7 @@ die()
 function usage
 {
     if [ $# -ne 0 ]; then
-        echo "$(basename $0): Error: ${RED}$@${WHITE}"
+        echo $(basename "$0")": Error: ${RED}" "$@" "${WHITE}"
         echo ""
     else
         echo ""
@@ -87,14 +85,14 @@ function usage
 }
 
 if [ ${use_color} -eq 1 ]; then
-    RED=`tput setaf 1`
-    GREEN=`tput setaf 2`
-    YELLOW=`tput setaf 3`
-    BLUE=`tput setaf 4`
-    VIOLET=`tput setaf 5`
-    CYAN=`tput setaf 6`
-    WHITE=`tput setaf 7`
-    GREY=`tput setaf 8`
+    RED=$(tput setaf 1)
+    GREEN=$(tput setaf 2)
+    YELLOW=$(tput setaf 3)
+    BLUE=$(tput setaf 4)
+    VIOLET=$(tput setaf 5)
+    CYAN=$(tput setaf 6)
+    WHITE=$(tput setaf 7)
+    GREY=$(tput setaf 8)
 else
     RED=""
     GREEN=""
@@ -107,12 +105,12 @@ else
 fi
 
 
-: ${BC:=$(which bc)}
-: ${IOPING:=$(which ioping)}
-: ${FIO:=$(which fio)}
-[ ! -x "${BC}" ] && die "Error: bc '${bc}' not found or not executable"
-[ ! -x "${IOPING}" ] && die "Error: ioping '${ioping}' not found or not executable"
-[ ! -x "${FIO}" ] && die "Error: fio '${fio}' not found or not executable"
+: "${BC:=$(which bc)}"
+: "${IOPING:=$(which ioping)}"
+: "${FIO:=$(which fio)}"
+[ ! -x "${BC}" ] && die "Error: bc '${BC}' not found or not executable"
+[ ! -x "${IOPING}" ] && die "Error: ioping '${IOPING}' not found or not executable"
+[ ! -x "${FIO}" ] && die "Error: fio '${FIO}' not found or not executable"
 
 TEMP=$(getopt -o hvd: --long disk:,export:,ioping-count: -n "$(basename $0)" -- "$@")
 if [ $? -ne 0 ]; then
@@ -129,7 +127,7 @@ while true; do
 	-d) disks=(${disks[@]} "${2}");
 	    shift 2;;
 	--ioping-count) ioping_count=$2;
-	    shift 2;;
+			shift 2;;
 	--export)
 	    export_to_file=1;
 	    RESULT_FOLDER="${2}";
@@ -165,8 +163,8 @@ readonly test_count=$((${#disks[@]} * ${#ioengine_array[@]} * ${#jobs_array[@]} 
 test_number=1
 disk_number=0
 
-for disk_dev in ${disks[@]}; do
-    disk_number=$(($disk_number + 1))
+for disk_dev in "${disks[@]}"; do
+    disk_number=$((disk_number + 1))
     declare -a disk_results=()
 
     DISK_MODEL=$(echo $(hdparm -I ${disk_dev} | grep -i model | cut -d : -f 2));
@@ -195,10 +193,10 @@ for disk_dev in ${disks[@]}; do
     tmpFile=$(mktemp "/tmp/ioping_${DISK_MODEL_NO_SPACE}.XXXX")
 
     if [[ ${verbose} -eq 0 ]]; then
-	${IOPING} -D -WWW -c ${ioping_count} ${disk_dev} | tail -n 2 > "${tmpFile}"
+	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" | tail -n 2 > "${tmpFile}"
     else
 	echo ""
-	${IOPING} -D -WWW -c ${ioping_count} ${disk_dev} | tee "${tmpFile}"
+	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" | tee "${tmpFile}"
     fi
 
     #1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
@@ -217,7 +215,7 @@ for disk_dev in ${disks[@]}; do
 
     #1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
     iops_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in .*, \([0-9\.]*\) \(.*\)iops.*|\1 \2|gp"))
-    if [ ${#iops_and_unit[@]} -eq 2 -o ${#iops_and_unit[@]} -eq 1 ]; then
+    if [ ${#iops_and_unit[@]} -eq 2 ] || [ ${#iops_and_unit[@]} -eq 1 ]; then
 	case "${iops_and_unit[1]}" in
 	    "")    iops=${iops_and_unit[0]};;
 	    "k")  iops=$(echo "scale=0;(${iops_and_unit[0]} * 1000)/1" | ${BC});;
@@ -232,14 +230,14 @@ for disk_dev in ${disks[@]}; do
     if [ ${#bw_and_unit[@]} -eq 2 ]; then
 	case "${bw_and_unit[1]}" in
 	    "B")   bw=${bw_and_unit[0]}
-		bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1000) / 1000" | ${BC} -l)
-		;;
+		   bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1000) / 1000" | ${BC} -l)
+		   ;;
 	    "KiB")  bw=$(echo "scale=0;${bw_and_unit[0]} * 1000" | ${BC} -l)
-		bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1000)" | ${BC} -l)
-		;;
+		    bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1000)" | ${BC} -l)
+		    ;;
 	    "MiB")  bw=$(echo "scale=0;${bw_and_unit[0]} * 1000 * 1000" | ${BC} -l)
-		bw_text=$(echo "scale=3;(${bw_and_unit[0]})" | ${BC} -l)
-		;;
+		    bw_text=$(echo "scale=3;(${bw_and_unit[0]})" | ${BC} -l)
+		    ;;
 	    *)     warn "Cannot parse ioping bw";;
 	esac
     else
@@ -279,11 +277,10 @@ for disk_dev in ${disks[@]}; do
     else
 	warn "Cannot parse ioping latency";
     fi
-
-    disk_results+=("Result ${test_number}/${test_count}: ioping: IOPS=${GREEN}${iops}${WHITE}, Bandwidth=${GREEN}${bw_text} MiB/s${WHITE}, Latency min ${GREEN}${min}us${WHITE} / avg ${GREEN}${avg}us${WHITE} / max ${GREEN}${max}us${WHITE} / mdev ${GREEN}${mdev}us${WHITE}")
+    disk_results+=("$(printf "Result %6s: ioping       : BW = ${GREEN}%7.2f %s${WHITE}, IOPS(min/max/avg/stdev) = ${GREEN}%6s / %6s / %6.0f / %6s${WHITE}, Latency min ${GREEN}${min}us${WHITE} / avg ${GREEN}${avg}us${WHITE} / max ${GREEN}${max}us${WHITE} / mdev ${GREEN}${mdev}us${WHITE}" "${test_number}/${test_count}" "${bw_text}" "MiB" "-" "-" "${iops}" "-")")
 
     IOPING_RESULT="${time};${iops};${bw};${min};${avg};${max};${mdev};"
-    test_number=$((${test_number}+1))
+    test_number=$((test_number+1))
     rm "${tmpFile}"
 
     ####
@@ -292,63 +289,65 @@ for disk_dev in ${disks[@]}; do
 
     declare fio_csv=()
 
-    for ioengine in ${ioengine_array[@]}; do
-        for rw in ${rw_array[@]}; do
-	    for job in ${jobs_array[@]}; do
-	        for iodepth in ${iodepth_array[@]}; do
-		    for sync in ${sync_array[@]}; do
-		        for direct in ${direct_array[@]}; do
-			    for bs in ${bs_array[@]}; do
-			        for runtime in ${runtime_array[@]}; do
+    for ioengine in "${ioengine_array[@]}"; do
+        for rw in "${rw_array[@]}"; do
+	    for job in "${jobs_array[@]}"; do
+	        for iodepth in "${iodepth_array[@]}"; do
+		    for sync in "${sync_array[@]}"; do
+		        for direct in "${direct_array[@]}"; do
+			    for bs in "${bs_array[@]}"; do
+			        for runtime in "${runtime_array[@]}"; do
 
-				#Create tmpfile to parse after
+				    #Create tmpfile to parse after
 				    tmpFile=$(mktemp "/tmp/fio_${DISK_MODEL_NO_SPACE}.XXXX")
 
 				    fio_test_name="${disk_dev},disk_model=${DISK_MODEL}"
 
-				    info "Test ${test_number}/${test_count}: FIO  with following options:" fio --filename="${disk_dev}" --ioengine=${ioengine}--direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting
+				    info "Test ${test_number}/${test_count}: FIO  with following options:" "fio --filename=${disk_dev} --ioengine=${ioengine}--direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting"
 
 				    if [ ${verbose} -eq 0 ]; then
-				        ${FIO} --filename="${disk_dev}" --ioengine=${ioengine} --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting --name="${fio_test_name}" > "${tmpFile}"
+				        "${FIO}" --filename="${disk_dev}" --ioengine="${ioengine}" --direct="${direct}" --sync="${sync}" --rw="${rw}" --bs="${bs}" --numjobs="${job}" --iodepth="${iodepth}" --runtime="${runtime}" --time_based --group_reporting --name="${fio_test_name}" > "${tmpFile}"
 				    else
 				        echo ""
-				        ${FIO} --filename="${disk_dev}" --ioengine=${ioengine} --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting --name="${fio_test_name}" | tee "${tmpFile}"
+				        "${FIO}" --filename="${disk_dev}" --ioengine="${ioengine}" --direct="${direct}" --sync="${sync}" --rw="${rw}" --bs="${bs}" --numjobs="${job}" --iodepth="${iodepth}" --runtime="${runtime}" --time_based --group_reporting --name="${fio_test_name}" | tee "${tmpFile}"
 				        echo ""
 				    fi
 
-				    nb_jobs=$(cat "${tmpFile}" | sed -n 's|.*, jobs=\(.*\)):.*|\1|gp'|head -n 1)
-			       	    iops=$(cat "${tmpFile}" | sed -n "s|.*B/s, iops=\(.*\)[[:space:]]*, runt.*|\1|gp"|head -n 1);
+				    #iops        : min=10540, max=10994, avg=10794.67, stdev=232.00, samples=3
+				    iops_min=$(cat "${tmpFile}" | sed -n "s|.*iops .*: min=\([^,]*\), max=\([^,]*\), avg=\([^,]*\), stdev=\([^,]*\),.*|\1|gp");
+				    iops_max=$(cat "${tmpFile}" | sed -n "s|.*iops .*: min=\([^,]*\), max=\([^,]*\), avg=\([^,]*\), stdev=\([^,]*\),.*|\2|gp");
+				    iops_avg=$(cat "${tmpFile}" | sed -n "s|.*iops .*: min=\([^,]*\), max=\([^,]*\), avg=\([^,]*\), stdev=\([^,]*\),.*|\3|gp");
+				    iops_dev=$(cat "${tmpFile}" | sed -n "s|.*iops .*: min=\([^,]*\), max=\([^,]*\), avg=\([^,]*\), stdev=\([^,]*\),.*|\4|gp");
 
-				#1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
-				    bw_and_unit=($(cat "${tmpFile}" | sed -n "s|.*bw=\([0-9\.]*\)\([A-Za-z]*\)/s, iops=.*|\1 \2|gp"))
+				    #   WRITE: bw=39.6MiB/s (41.5MB/s), 39.6MiB/s-39.6MiB/s (41.5MB/s-41.5MB/s), io=79.3MiB (83.1MB), run=2001-2001msec
+				    bw_and_unit=($(cat "${tmpFile}" | sed -n "s|.* bw=\([0-9\.]*\)\([A-Za-z]*\)/s (\([0-9\.]*\)\([A-Za-z]*\)/s).*|\1 \2|gp"))
+
 				    if [ ${#bw_and_unit[@]} -eq 2 ]; then
+					bw_raw=${bw_and_unit[0]}
+					bw_text="MiB"
 				        case "${bw_and_unit[1]}" in
-					    "B")   bw=${bw_and_unit[0]}
-					        bw_text=$(echo "scale=3;(${bw_and_unit[0]} / 1024) / 1024" | ${BC} -l)
-					        ;;
-					    "KB")  bw=$(echo "${bw_and_unit[0]} * 1024" | ${BC} -l)
-					        bw_text=$(echo "scale=3;${bw_and_unit[0]} / 1024" | ${BC} -l)
-					        ;;
-					    "MB")  bw=$(echo "${bw_and_unit[0]} * 1024 * 1024" | ${BC} -l)
-					        bw_text="${bw_and_unit[0]}"
-					        ;;
+                                            "B")   bw=$(echo "scale=2;(${bw_raw} / 1024) / 1024" | ${BC} -l); bw_b_per_s=$(echo "scale=0;${bw_raw} * 1 / 1" | ${BC} -l);                 ;;
+                                            "KiB") bw=$(echo "scale=2;${bw_raw} / 1024" | ${BC} -l)           bw_b_per_s=$(echo "scale=0;${bw_raw} * 1024 / 1" | ${BC} -l)               ;;
+                                            "MiB") bw=$(echo "scale=2;${bw_raw} * 1" | ${BC} -l)              bw_b_per_s=$(echo "scale=0;${bw_raw} * 1024 * 1024 / 1" | ${BC} -l)        ;;
+                                            "GiB") bw=$(echo "scale=2;${bw_raw} * 1024" | ${BC} -l)           bw_b_per_s=$(echo "scale=0;${bw_raw} * 1024 * 1024 * 1024 / 1" | ${BC} -l) ;;
 					    *)     warn "Cannot parse fio bw";;
 				        esac
 				    else
 				        warn "Cannot parse fio bw";
 				    fi
 
-				#rw=write, bs=4K-4K/4K-4K, ioengine=sync, iodepth=1
-				    bs=$(cat "${tmpFile}" | sed -n "s|.*bs=\(.*\), ioengine.*|\1|gp"|head -n 1);
-				    iodepth=$(cat "${tmpFile}" | sed -n "s|.*iodepth=\(.*\)|\1|gp"|head -n 1);
-				    runtime=$(cat "${tmpFile}" | sed -n "s|.*runt=\(.*\)|\1|gp"| cut -d 'm' -f1 | tr -d ' '| head -n 1 );
-				    rw=$(cat "${tmpFile}" | sed -n "s|.*rw=\(.*\)|\1|gp"|head -n 1 | cut -d , -f1);
+				    #/dev/xvdb,disk_model=: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=posixaio, iodepth=1
+				    #rw=$(      cat "${tmpFile}" | sed -n "s|.*rw=\([^,]*\), bs=\(.*\), ioengine=\([^,]*\), iodepth=\(.*\)$|\1|gp"|head -n 1);
+				    #bs=$(      cat "${tmpFile}" | sed -n "s|.*rw=\([^,]*\), bs=\(.*\), ioengine=\([^,]*\), iodepth=\(.*\)$|\2|gp"|head -n 1);
+				    #ioengine=$(cat "${tmpFile}" | sed -n "s|.*rw=\([^,]*\), bs=\(.*\), ioengine=\([^,]*\), iodepth=\(.*\)$|\3|gp"|head -n 1);
+				    #iodepth=$( cat "${tmpFile}" | sed -n "s|.*rw=\([^,]*\), bs=\(.*\), ioengine=\([^,]*\), iodepth=\(.*\)$|\4|gp"|head -n 1);
+
 				    rm "${tmpFile}"
 
-				    fio_csv+=("${direct};${sync};${nb_jobs};${bs};${ioengine};${iodepth};${rw};${iops};${bw};${runtime::-3};")
-				    disk_results+=("Result ${test_number}/${test_count}: fio: BW=${GREEN}${bw_text} MB/s${WHITE}, IOPS=${GREEN}${iops}${WHITE}")
+				    fio_csv+=("${direct};${sync};${job};${bs};${ioengine};${iodepth};${rw};${iops_min};${iops_max};${iops_avg};${iops_dev};${bw_b_per_s};${runtime};")
+				    disk_results+=("$(printf "Result %6s: fio %-9s: BW = ${GREEN}%7.2f %s${WHITE}, IOPS(min/max/avg/stdev) = ${GREEN}%6.0f / %6.0f / %6.0f / %6.0f${WHITE}\n" " ${test_number}/${test_count}" "$rw" "${bw}" "${bw_text}" "${iops_min}" "${iops_max}" "${iops_avg}" "${iops_dev}")")
 
-				    test_number=$((${test_number}+1))
+				    test_number=$((test_number+1))
 			        done
 			    done
 		        done
@@ -360,7 +359,7 @@ for disk_dev in ${disks[@]}; do
 
     if [ ${export_to_file} -eq 1 ]; then
 	MODEL_CSV_HEADER="disk_model;disk_size;disk_size_unit;disk_firmware_version;"
-	FIO_CSV_HEADER="fio_io_direct;fio_io_sync;fio_nb_jobs;fio_bs;fio_ioengine;fio_iodepth;fio_rw;fio_iops;fio_bw (B/s);fio_runtime (s);"
+	FIO_CSV_HEADER="fio_io_direct;fio_io_sync;fio_nb_jobs;fio_bs;fio_ioengine;fio_iodepth;fio_rw;fio_iops_min;fio_iops_max;fio_iops_avg;fio_iops_stdev;fio_bw (B/s);fio_runtime (s);"
 	IOPING_CSV_HEADER="ioping_time (us);ioping_iops;ioping_bw (B/s);ioping_min_latency (us);ioping_avg_latency (us);ioping_max_latency (us);ioping_mdev_latency (us);"
 
 	CSV_HEADER=${MODEL_CSV_HEADER}${FIO_CSV_HEADER}${IOPING_CSV_HEADER}
