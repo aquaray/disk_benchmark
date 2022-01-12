@@ -6,12 +6,12 @@
 
 ioping_count=60
 declare -a ioengine_array=("libaio")
-declare -a jobs_array=(1 2 4 8 16 32 64)
-declare -a iodepth_array=(1)
+declare -a jobs_array=(1 2 4 16)
+declare -a iodepth_array=(1 16)
 declare -a sync_array=(0 1)
-declare -a direct_array=(1)
+declare -a direct_array=(1 1)
 declare -a rw_array=('write' 'randwrite' 'read' 'randread') #RW_Array possible values : read, write, randread, randwrite, rw, readwrite, randrw
-declare -a bs_array=('4k')
+declare -a bs_array=('4k' '64k' '1m')
 declare -a runtime_array=(60)
 readonly use_color=1
 
