@@ -199,8 +199,8 @@ for disk_dev in "${disks[@]}"; do
 	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" | tee "${tmpFile}"
     fi
 
-    #1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
-    time_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in \(.*\) \(.*\), .* iops, .*|\1 \2|gp"))
+    #59 requests completed in 1.53 s, 236 KiB written, 38 iops, 153.9 KiB/s
+    time_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in \([^,]*\), [^,]* written, \([^,]*\) iops, \(.*\)/s|\1|gp"))
     if [ ${#time_and_unit[@]} -eq 2 ]; then
 	case "${time_and_unit[1]}" in
 	    "us")  time=${time_and_unit[0]};;
@@ -213,8 +213,8 @@ for disk_dev in "${disks[@]}"; do
 	warn "Cannot parse ioping time";
     fi
 
-    #1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
-    iops_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in .*, \([0-9\.]*\) \(.*\)iops.*|\1 \2|gp"))
+    #59 requests completed in 1.53 s, 236 KiB written, 38 iops, 153.9 KiB/s
+    iops_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in \([^,]*\), [^,]* written, \([^,]*\) iops, \(.*\)/s|\2|gp"))
     if [ ${#iops_and_unit[@]} -eq 2 ] || [ ${#iops_and_unit[@]} -eq 1 ]; then
 	case "${iops_and_unit[1]}" in
 	    "")    iops=${iops_and_unit[0]};;
@@ -225,8 +225,8 @@ for disk_dev in "${disks[@]}"; do
 	warn "Cannot parse ioping iops";
     fi
 
-    #1 requests completed in 366 us, 4.78 k iops, 18.7 MiB/s
-    bw_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in .*, .*iops, \([0-9\.]*\) \([a-zA-Z]*B\)/s.*|\1 \2|gp"))
+    #59 requests completed in 1.53 s, 236 KiB written, 38 iops, 153.9 KiB/s
+    bw_and_unit=($(cat "${tmpFile}" | sed -n "s|.* requests completed in \([^,]*\), [^,]* written, \([^,]*\) iops, \(.*\)/s|\3|gp"))
     if [ ${#bw_and_unit[@]} -eq 2 ]; then
 	case "${bw_and_unit[1]}" in
 	    "B")   bw=${bw_and_unit[0]}
