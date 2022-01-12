@@ -39,7 +39,10 @@ The CSV will contain the following values (for each tested disk) :
 - fio ioengine (string)
 - fio iodepth (integer)
 - fio rw (string)
-- fio iops
+- fio iops min
+- fio iops max
+- fio iops avg
+- fio iops stdev
 - fio bandwidth (in B/s)
 - fio runtime (in seconds)
 - ioping time (in us)
