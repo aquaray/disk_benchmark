@@ -9,15 +9,17 @@ declare -a ioengine_array=("libaio")
 declare -a jobs_array=(1 2 4 16)
 declare -a iodepth_array=(1 16)
 declare -a sync_array=(0 1)
-declare -a direct_array=(1 1)
+declare -a direct_array=(0 1)
 declare -a rw_array=('write' 'randwrite' 'read' 'randread') #RW_Array possible values : read, write, randread, randwrite, rw, readwrite, randrw
 declare -a bs_array=('4k' '64k' '1m')
 declare -a runtime_array=(60)
+
 readonly use_color=1
 
 declare -a disks=()
 export_to_file=0
 verbose=0
+csv_prepend=""
 
 my_banner()
 {
@@ -81,6 +83,7 @@ function usage
     echo "                       multiple times to test different disk in the same run."
     echo "  --ioping-count x     Change the ioping count"
     echo "  --export folder      Use this folder to write csv files"
+    echo "  --csv-prepend Override CSV filename"
     exit 1
 }
 
@@ -112,7 +115,7 @@ fi
 [ ! -x "${IOPING}" ] && die "Error: ioping '${IOPING}' not found or not executable"
 [ ! -x "${FIO}" ] && die "Error: fio '${FIO}' not found or not executable"
 
-TEMP=$(getopt -o hvd: --long disk:,export:,ioping-count: -n "$(basename $0)" -- "$@")
+TEMP=$(getopt -o hvd: --long disk:,export:,csv-prepend:,ioping-count: -n "$(basename $0)" -- "$@")
 if [ $? -ne 0 ]; then
     usage
 fi
@@ -131,6 +134,9 @@ while true; do
 	--export)
 	    export_to_file=1;
 	    RESULT_FOLDER="${2}";
+	    shift 2;;
+	--csv-prepend)
+	    csv_prepend="${2}"
 	    shift 2;;
 	--) shift ; break;;
 	*) die "Internal error!";;
@@ -180,7 +186,7 @@ for disk_dev in "${disks[@]}"; do
 
     DISK_MODEL_NO_SPACE=$(echo "${DISK_MODEL}" | sed "s/[[:space:]]/_/g")
 
-    my_banner "Testing : ${DISK_MODEL} (${disk_dev})";
+    my_banner "Testing : ${DISK_MODEL} (${disk_dev}) (option=${csv_prepend})";
 
 
     ####
@@ -192,6 +198,7 @@ for disk_dev in "${disks[@]}"; do
     #Create tmpfile to parse after
     tmpFile=$(mktemp "/tmp/ioping_${DISK_MODEL_NO_SPACE}.XXXX")
 
+    date_begin=$(date '+%Y%m%d-%H%M')
     if [[ ${verbose} -eq 0 ]]; then
 	"${IOPING}" -D -WWW -c "${ioping_count}" "${disk_dev}" > "${tmpFile}"
     else
@@ -277,9 +284,9 @@ for disk_dev in "${disks[@]}"; do
     else
 	warn "Cannot parse ioping latency";
     fi
-    disk_results+=("$(printf "Result %6s: ioping       : BW = ${GREEN}%7.2f %s${WHITE}, IOPS(min/max/avg/stdev) = ${GREEN}%6s / %6s / %6.0f / %6s${WHITE}, Latency min ${GREEN}${min}us${WHITE} / avg ${GREEN}${avg}us${WHITE} / max ${GREEN}${max}us${WHITE} / mdev ${GREEN}${mdev}us${WHITE}" "${test_number}/${test_count}" "${bw_text}" "MiB" "-" "-" "${iops}" "-")")
+    disk_results+=("$(printf "%s Result %6s: ioping       : BW = ${GREEN}%7.2f %s${WHITE}, IOPS(min/max/avg/stdev) = ${GREEN}%6s / %6s / %6.0f / %6s${WHITE}, Latency min ${GREEN}${min}us${WHITE} / avg ${GREEN}${avg}us${WHITE} / max ${GREEN}${max}us${WHITE} / mdev ${GREEN}${mdev}us${WHITE}" "${date_begin}" "${test_number}/${test_count}" "${bw_text}" "MiB" "-" "-" "${iops}" "-")")
 
-    IOPING_RESULT="${time};${iops};${bw};${min};${avg};${max};${mdev};"
+    IOPING_RESULT="${date_begin};${time};${iops};${bw};${min};${avg};${max};${mdev};"
     test_number=$((test_number+1))
     rm "${tmpFile}"
 
@@ -300,16 +307,24 @@ for disk_dev in "${disks[@]}"; do
 
 				    #Create tmpfile to parse after
 				    tmpFile=$(mktemp "/tmp/fio_${DISK_MODEL_NO_SPACE}.XXXX")
+				    echo -n '' > ${tmpFile}
 
-				    fio_test_name="${disk_dev},disk_model=${DISK_MODEL}"
+				    fio_test_destination=${disk_dev}
+				    size=""
+				    if [ -d ${fio_test_destination} ]; then
+					fio_test_destination=${fio_test_destination}/fio-fstest
+					size=" --size=$(free -m | awk '/Mem:/ {print $2*3}')M "
+				    fi
 
-				    info "Test ${test_number}/${test_count}: FIO  with following options:" "fio --filename=${disk_dev} --ioengine=${ioengine}--direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} --time_based --group_reporting"
+				    fio_test_name="${fio_test_destination},disk_model=${DISK_MODEL},${csv_prepend//[^[:alnum:]],=/_}"
+				    info "Test ${test_number}/${test_count}: FIO  with following options:" "fio --filename=${fio_test_destination} --ioengine=${ioengine} --direct=${direct} --sync=${sync} --rw=${rw} --bs=${bs} --numjobs=${job} --iodepth=${iodepth} --runtime=${runtime} ${size} --time_based --group_reporting --name=${fio_test_name}"
 
+				    date_begin=$(date '+%Y%m%d-%H%M')
 				    if [ ${verbose} -eq 0 ]; then
-				        "${FIO}" --filename="${disk_dev}" --ioengine="${ioengine}" --direct="${direct}" --sync="${sync}" --rw="${rw}" --bs="${bs}" --numjobs="${job}" --iodepth="${iodepth}" --runtime="${runtime}" --time_based --group_reporting --name="${fio_test_name}" > "${tmpFile}"
+				        "${FIO}" --filename="${fio_test_destination}" --ioengine="${ioengine}" --direct="${direct}" --sync="${sync}" --rw="${rw}" --bs="${bs}" --numjobs="${job}" --iodepth="${iodepth}" --runtime="${runtime}"  ${size} --time_based --group_reporting --name="${fio_test_name}" > "${tmpFile}"
 				    else
 				        echo ""
-				        "${FIO}" --filename="${disk_dev}" --ioengine="${ioengine}" --direct="${direct}" --sync="${sync}" --rw="${rw}" --bs="${bs}" --numjobs="${job}" --iodepth="${iodepth}" --runtime="${runtime}" --time_based --group_reporting --name="${fio_test_name}" | tee "${tmpFile}"
+				        "${FIO}" --filename="${fio_test_destination}" --ioengine="${ioengine}" --direct="${direct}" --sync="${sync}" --rw="${rw}" --bs="${bs}" --numjobs="${job}" --iodepth="${iodepth}" --runtime="${runtime}"  ${size} --time_based --group_reporting --name="${fio_test_name}" | tee "${tmpFile}"
 				        echo ""
 				    fi
 
@@ -344,8 +359,9 @@ for disk_dev in "${disks[@]}"; do
 
 				    rm "${tmpFile}"
 
-				    fio_csv+=("${direct};${sync};${job};${bs};${ioengine};${iodepth};${rw};${iops_min};${iops_max};${iops_avg};${iops_dev};${bw_b_per_s};${runtime};")
-				    disk_results+=("$(printf "Result %6s: fio %-9s: BW = ${GREEN}%7.2f %s${WHITE}, IOPS(min/max/avg/stdev) = ${GREEN}%6.0f / %6.0f / %6.0f / %6.0f${WHITE}\n" " ${test_number}/${test_count}" "$rw" "${bw}" "${bw_text}" "${iops_min}" "${iops_max}" "${iops_avg}" "${iops_dev}")")
+				    echo "${csv_prepend};${date_begin};${direct};${sync};${job};${bs};${ioengine};${iodepth};${rw};${iops_min};${iops_max};${iops_avg};${iops_dev};${bw_b_per_s};${runtime};" >> ${RESULT_FOLDER}/${DISK_MODEL_NO_SPACE}_${DISK_SIZE[0]}${DISK_SIZE[1]}_${DISK_FIRMWARE}_${disk_number}.csv.run
+				    fio_csv+=("${date_begin};${direct};${sync};${job};${bs};${ioengine};${iodepth};${rw};${iops_min};${iops_max};${iops_avg};${iops_dev};${bw_b_per_s};${runtime};")
+				    disk_results+=("$(printf "%s Result %6s: fio %-9s: BW = ${GREEN}%7.2f %s${WHITE}, IOPS(min/max/avg/stdev) = ${GREEN}%6.0f / %6.0f / %6.0f / %6.0f${WHITE}\n" "${date_begin}" " ${test_number}/${test_count}" "${rw}" "${bw}" "${bw_text}" "${iops_min}" "${iops_max}" "${iops_avg}" "${iops_dev}")")
 
 				    test_number=$((test_number+1))
 			        done
@@ -359,16 +375,17 @@ for disk_dev in "${disks[@]}"; do
 
     if [ ${export_to_file} -eq 1 ]; then
 	MODEL_CSV_HEADER="disk_model;disk_size;disk_size_unit;disk_firmware_version;"
-	FIO_CSV_HEADER="fio_io_direct;fio_io_sync;fio_nb_jobs;fio_bs;fio_ioengine;fio_iodepth;fio_rw;fio_iops_min;fio_iops_max;fio_iops_avg;fio_iops_stdev;fio_bw (B/s);fio_runtime (s);"
-	IOPING_CSV_HEADER="ioping_time (us);ioping_iops;ioping_bw (B/s);ioping_min_latency (us);ioping_avg_latency (us);ioping_max_latency (us);ioping_mdev_latency (us);"
+	FIO_CSV_HEADER="date_fio_started;fio_io_direct;fio_io_sync;fio_nb_jobs;fio_bs;fio_ioengine;fio_iodepth;fio_rw;fio_iops_min;fio_iops_max;fio_iops_avg;fio_iops_stdev;fio_bw (B/s);fio_runtime (s);"
+	IOPING_CSV_HEADER="date_ioping_started;ioping_time (us);ioping_iops;ioping_bw (B/s);ioping_min_latency (us);ioping_avg_latency (us);ioping_max_latency (us);ioping_mdev_latency (us);"
 
-	CSV_HEADER=${MODEL_CSV_HEADER}${FIO_CSV_HEADER}${IOPING_CSV_HEADER}
-
+	CSV_HEADER="option;"${MODEL_CSV_HEADER}${FIO_CSV_HEADER}${IOPING_CSV_HEADER}
 	output_file="${RESULT_FOLDER}/${DISK_MODEL_NO_SPACE}_${DISK_SIZE[0]}${DISK_SIZE[1]}_${DISK_FIRMWARE}_${disk_number}.csv"
 	info "Write results for ${DISK_MODEL} in ${output_file}"
-	echo "${CSV_HEADER}" > "${output_file}"
+	if ! [ -s ${output_file} ]; then
+	    echo "${CSV_HEADER}" > "${output_file}"
+	fi
 	for fio_line in "${fio_csv[@]}"; do
-	    echo "${DISK_MODEL};${DISK_SIZE[0]};${DISK_SIZE[1]};${DISK_FIRMWARE};${fio_line}${IOPING_RESULT}" >> "${output_file}"
+	    echo "${csv_prepend};${DISK_MODEL};${DISK_SIZE[0]};${DISK_SIZE[1]};${DISK_FIRMWARE};${fio_line}${IOPING_RESULT}" >> "${output_file}"
 	done
     fi
 
